@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>紫微星空儀 | 2026 旗艦精修版</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700;900&display=swap" rel="stylesheet">
+    <!-- 曆法庫 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lunar-javascript/1.6.12/lunar.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #020408; --gold: #D4AF37; --gold-light: #F3E5AB;
+            --silver: #E0E0E0; --silver-glow: rgba(200, 200, 255, 0.4);
+            --color-royal: #e879f9; --color-warrior: #f87171; 
+            --color-stability: #4ade80; --color-bureau: #60a5fa;
+            --line-green: #06C755;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { background-color: var(--bg-dark); color: var(--gold-light); font-family: 'Noto Serif TC', serif; height: 100vh; overflow: hidden; }
+
+        /* === 1. 背景與星空 === */
+        .layer-bg { position: absolute; inset: 0; z-index: 0; background: radial-gradient(circle at 50% 50%, #0a1020 0%, #020408 100%); }
+        .stars-layer { position: absolute; inset: 0; background-image: radial-gradient(1.5px 1.5px at 20px 30px, #fff, rgba(0,0,0,0)), radial-gradient(2px 2px at 150px 150px, rgba(255,255,255,0.8), rgba(0,0,0,0)); background-size: 300px 300px; opacity: 0.4; }
+
+        /* === 2. 入口畫面 (層級最高) === */
+        #intro-overlay {
+            position: fixed; inset: 0; background: var(--bg-dark); z-index: 100000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: 1s ease-out;
+        }
+        #intro-overlay.fade-out { opacity: 0; visibility: hidden; pointer-events: none; }
+        .gate-title { font-size: clamp(36px, 10vw, 56px); font-weight: 900; letter-spacing: 20px; color: var(--gold); margin-bottom: 20px; text-shadow: 0 0 30px rgba(212,175,55,0.3); text-indent: 20px; }
+        .gate-subtitle { color: #888; font-size: 21px; letter-spacing: 5px; margin-bottom: 40px; font-weight: 400; text-indent: 5px; }
+
+        .btn-launch { 
+            position: relative; width: 100%; max-width: 320px; padding: 20px; 
+            font-size: 22px; font-weight: 900; letter-spacing: 6px; color: #000;
+            background: linear-gradient(135deg, #B8860B, #FFDF00, #D4AF37);
+            background-size: 200% 200%; border: none; border-radius: 50px;
+            cursor: pointer; box-shadow: 0 10px 30px rgba(212,175,55,0.4);
+            animation: gold-flow 3s linear infinite; z-index: 100001;
+        }
+        @keyframes gold-flow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+        /* === 3. 銀色巨型載入圖 === */
+        #ritual-loader {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.96); z-index: 90000;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .bagua-spin { font-size: clamp(150px, 30vw, 220px); color: var(--silver); text-shadow: 0 0 40px var(--silver-glow); animation: spin-bagua-mega 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+        @keyframes spin-bagua-mega { 0% { transform: rotate(0deg) scale(0.85); opacity: 0.5; } 50% { transform: rotate(180deg) scale(1.1); opacity: 1; } 100% { transform: rotate(360deg) scale(0.85); opacity: 0.5; } }
+        .loader-text { margin-top: 50px; color: #BBB; letter-spacing: 15px; font-weight: 900; font-size: 18px; text-indent: 15px; }
+
+        /* === 4. 頂部工具列 === */
+        .header { position: relative; z-index: 500; background: rgba(0,0,0,0.85); backdrop-filter: blur(20px); padding: 30px 15px; border-bottom: 1px solid rgba(212,175,55,0.1); text-align: center; opacity: 0; transition: 1s; pointer-events: auto; }
+        .header.show { opacity: 1; }
+        .observing-tag { color: var(--gold); font-size: clamp(24px, 4vw, 36px); font-weight: 900; letter-spacing: 15px; margin-bottom: 20px; text-indent: 15px; text-shadow: 0 0 15px rgba(212,175,55,0.5); }
+        .tool-bar { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; margin-top: 15px; }
+        input, select { background: #111; border: 1px solid #333; color: #fff; padding: 10px 15px; border-radius: 8px; font-family: inherit; font-size: 15px; outline: none; }
+        .btn-update { background: var(--gold); color: #000; border: none; padding: 10px 25px; border-radius: 8px; font-weight: 900; cursor: pointer; transition: 0.3s; }
+
+        /* 命宮資訊 去方塊化 */
+        .result-box { margin-top: 25px; padding: 0; display: none; }
+        .main-star-display { display: block; margin-top: 12px; font-size: 28px; font-weight: 900; color: var(--gold); letter-spacing: 4px; text-shadow: 0 0 20px rgba(212,175,55,0.7); }
+
+        /* === 5. 星盤與星曜 === */
+        .map-view { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; pointer-events: auto; }
+        .chart-container { position: relative; width: 88vmin; height: 88vmin; max-width: 600px; max-height: 600px; }
+        .palace-node { position: absolute; transform: translate(-50%, -50%); width: 13vmin; height: 13vmin; max-width: 65px; max-height: 65px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: center; font-size: 14px; color: rgba(255,255,255,0.2); }
+        .active-life { border: 2.5px solid var(--gold); background: rgba(212,175,55,0.1); box-shadow: 0 0 30px var(--gold); }
+
+        .star-orb { position: absolute; transform: translate(-50%, -50%); cursor: pointer; z-index: 100; display: flex; flex-direction: column; align-items: center; transition: 1.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        .star-dot { width: 11px; height: 11px; background: #fff; border-radius: 50%; border: 2px solid #000; box-shadow: 0 0 15px var(--group-color); transition: 0.4s; }
+        .star-name { font-size: 14px; margin-top: 6px; color: #fff; white-space: nowrap; font-weight: 700; text-shadow: 0 0 8px #000, 0 0 5px var(--group-color); }
+
+        /* 命宮主星 強光亮化 */
+        .is-ming-star .star-dot { width: 20px; height: 20px; box-shadow: 0 0 30px #fff, 0 0 60px var(--gold), 0 0 100px var(--gold) !important; border: 3px solid #fff; animation: ming-pulse 1.2s infinite alternate; }
+        .is-ming-star .star-name { font-size: 16px; color: var(--gold); text-shadow: 0 0 15px var(--gold); }
+        @keyframes ming-pulse { from { transform: scale(1); } to { transform: scale(1.3); } }
+
+        .line-path { fill: none; stroke-width: 1.2; stroke-dasharray: 1000; stroke-dashoffset: 1000; opacity: 0.15; }
+        .line-path.draw { animation: draw-line 2.5s ease-out forwards; }
+        @keyframes draw-line { to { stroke-dashoffset: 0; } }
+
+        /* 側面板與 Modal */
+        .side-panel { position: fixed; right: -100%; top: 0; width: 450px; max-width: 100vw; height: 100vh; background: #fff; color: #111; z-index: 120000; transition: 0.6s cubic-bezier(0.16, 1, 0.3, 1); overflow-y: auto; }
+        .side-panel.open { right: 0; }
+        .panel-img-box { width: 100%; height: 320px; background: #000; overflow: hidden; cursor: zoom-in; border-bottom: 5px solid var(--gold); }
+        .panel-img-box img { width: 100%; height: 100%; object-fit: cover; }
+        #img-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 150000; display: none; align-items: center; justify-content: center; cursor: zoom-out; backdrop-filter: blur(10px); }
+        #img-modal img { max-width: 92%; max-height: 85vh; border: 3px solid var(--gold); }
+    </style>
+</head>
+<body>
+
+    <!-- [1] 天命之門 (最高優先層) -->
+    <div id="intro-overlay">
+        <h1 class="gate-title">紫微星空儀</h1>
+        <p class="gate-subtitle">觀測 2026 丙午年天命軌跡</p>
+        <div style="width: 85%; max-width: 350px; text-align: center;">
+            <input type="date" id="i-date" value="1995-08-15" style="width:100%; font-size:18px; margin-bottom:15px; border:none; background:#111; color:white;">
+            <select id="i-time" style="width:100%; font-size:18px; margin-top:15px; border:none; background:#111; color:white;">
+                <option value="0">子時 23-01</option><option value="1">丑時 01-03</option><option value="2">寅時 03-05</option><option value="3">卯時 05-07</option>
+                <option value="4">辰時 07-09</option><option value="5">巳時 09-11</option><option value="6">午時 11-13</option><option value="7">未時 13-15</option>
+                <option value="8">申時 15-17</option><option value="9">酉時 17-19</option><option value="10">戌時 19-21</option><option value="11">亥時 21-23</option>
+            </select>
+            <button class="btn-launch" onclick="app.launch()">✨ 啟動全自動排盤</button>
+        </div>
+    </div>
+
+    <!-- [2] 銀色巨型載入層 -->
+    <div id="ritual-loader">
+        <div class="bagua-spin">☯</div>
+        <p class="loader-text">天機運轉中...</p>
+    </div>
+
+    <!-- [3] 背景與主介面 -->
+    <div class="layer-bg"><div class="stars-layer"></div></div>
+    <div style="display:flex; flex-direction:column; height:100vh; position:relative;">
+        <div class="header" id="header">
+            <div class="observing-tag">正在觀測命盤</div>
+            <div class="tool-bar">
+                <input type="date" id="m-date">
+                <select id="m-time">
+                    <option value="0">子時 23-01</option><option value="1">丑時 01-03</option><option value="2">寅時 03-05</option><option value="3">卯時 05-07</option>
+                    <option value="4">辰時 07-09</option><option value="5">巳時 09-11</option><option value="6">午時 11-13</option><option value="7">未時 13-15</option>
+                    <option value="8">申時 15-17</option><option value="9">酉時 17-19</option><option value="10">戌時 19-21</option><option value="11">亥時 21-23</option>
+                </select>
+                <button class="btn-update" onclick="app.refresh()">更新</button>
+            </div>
+            <div id="result-box" class="result-box"></div>
+        </div>
+        <div class="map-view">
+            <div class="chart-container" id="chart-main">
+                <svg id="star-svg" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;">
+                    <path id="path-zw" class="line-path" stroke="var(--color-royal)"></path>
+                    <path id="path-tf" class="line-path" stroke="var(--color-warrior)"></path>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- [4] 詳情側欄 -->
+    <div class="side-panel" id="sidePanel">
+        <div style="position:absolute; top:25px; left:25px; font-size:40px; color:#fff; cursor:pointer; z-index:20; text-shadow:0 0 15px #000;" onclick="this.parentElement.classList.remove('open')">×</div>
+        <div class="panel-img-box" onclick="app.zoom()">
+            <img id="pImg" src="" alt="性格圖">
+        </div>
+        <div style="padding:40px 30px;">
+            <h2 id="pName" style="font-size:48px; font-weight:900;">星曜</h2>
+            <div id="pCrystal" style="color:#2563eb; font-weight:900; font-size:18px; margin:10px 0;">💎 能量水晶：--</div>
+            <p id="pMean" style="font-weight:900; color:var(--gold); font-size:20px;"></p>
+            <p id="pTraits" style="font-size:17px; color:#444; line-height:1.8; margin-top:20px;"></p>
+            <div style="background:#fdfaf0; border-left:6px solid var(--gold); padding:20px; margin-top:30px; border-radius:0 15px 15px 0;">
+                <h4 style="color:#B8860B;">🔮 2026 丙午年流年解析</h4>
+                <p id="pFortune" style="font-size:16px; color:#333; line-height:1.7; margin-top:10px;"></p>
+            </div>
+            <div style="margin-top:40px; text-align:center; border:2px dashed var(--line-green); padding:25px; border-radius:20px; background:#f0fff4;">
+                <img src="https://qr-official.line.me/gs/M_014nbcwf_GW.png?oat_content=qr" style="width:160px; border-radius:12px;">
+                <button class="btn-update" style="background:var(--line-green); color:#fff; width:100%; margin-top:20px; padding:15px; font-size:18px;" onclick="window.open('https://line.me/R/ti/p/@014nbcwf')">💬 聯繫大師解盤</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="img-modal" onclick="this.style.display='none'"><img id="modal-img" src=""></div>
+
+    <script>
+        const StarSound = {
+            ctx: null, 
+            init() { try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ console.log('Audio init failed'); } },
+            play(freq = 880) {
+                if(!this.ctx) return; if(this.ctx.state === 'suspended') this.ctx.resume();
+                const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                osc.type = 'sine'; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(freq/2, this.ctx.currentTime+0.4);
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime+0.4);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime+0.4);
+            }
+        };
+
+        const starDB = {
+            '紫微': { chain:'zw', color:'#e879f9', crystal:'紫水晶', mean:'帝王之星', traits:'求好心切、好面子、尊嚴感強，具領導力與包容心，但也容易耳根子軟。', fortune2026:'穩中求勝，事業有新突破，但需注意人際關係和諧，放下身段方能獲貴人相助。' },
+            '天府': { chain:'tf', color:'#e879f9', crystal:'黃水晶', mean:'財庫之星', traits:'性格保守穩定，懂得享受生活，不喜冒險，具號令能力，管家風範。', fortune2026:'流年逢庫，財務穩定。適合保守理財，避免過度安逸，展現企圖心能迎來升遷。' },
+            '太陽': { chain:'zw', color:'#e879f9', crystal:'太陽石', mean:'官貴之星', traits:'熱情正直，喜歡照顧人，重視名譽，做事主動積極，天生發光體。', fortune2026:'能量爆發，驛馬星動。適合向外發展拓展人脈，唯需防體力過度消耗。' },
+            '太陰': { chain:'tf', color:'#e879f9', crystal:'月光石', mean:'財星/月亮', traits:'溫柔纖細，愛乾淨，重視精神生活與儲蓄觀念，內心感性。', fortune2026:'桃花財運並存。投資理財需冷靜，單身者多參與社交活動有助結識良緣。' },
+            '武曲': { chain:'zw', color:'#60a5fa', crystal:'鈦晶', mean:'財星/將星', traits:'剛毅果決，執行力強，為人耿直，踏實的行動派，性格較硬。', fortune2026:'正財入庫。耕耘必有厚報，適合穩紮穩打拓展版圖，不宜參與高風險投機。' },
+            '天機': { chain:'zw', color:'#4ade80', crystal:'螢石', mean:'智慧謀臣', traits:'反應快、心思細密，擅長企劃，腦袋轉動極快，但精神較緊繃。', fortune2026:'企劃升職契機。執行能力提升，事業有升遷機會，需留意睡眠與神經放鬆。' },
+            '天同': { chain:'zw', color:'#4ade80', crystal:'海藍寶', mean:'福德之星', traits:'知足常樂，人緣佳，性格溫和，有赤子之心，有時缺乏衝勁。', fortune2026:'福氣滿滿。做事事半功倍，貴人環繞。主動出擊能把握好運，忌過度懶散。' },
+            '廉貞': { chain:'zw', color:'#60a5fa', crystal:'石榴石', mean:'囚星/官祿', traits:'自律負責，具備傲氣，愛恨分明，容易鑽牛角尖，有神秘感。', fortune2026:'保持低調。情緒起伏大，凡事宜守不宜攻，保持冷靜退一步則海闊天空。' },
+            '天相': { chain:'tf', color:'#60a5fa', crystal:'青金石', mean:'官印之星', traits:'謹慎踏實，彬彬有禮，具強大協調能力，最佳輔佐人才。', fortune2026:'協調合作的一年。在團隊中扮演關鍵角色，留意合約與文件細節，忌作保。' },
+            '天梁': { chain:'tf', color:'#4ade80', crystal:'木變石', mean:'蔭佑之星', traits:'正直老成，愛照顧後輩，具逢凶化吉之能，極具長輩緣。', fortune2026:'逢凶化吉。遇小阻礙總有長輩貴人相助，適合進修學習或接觸靈性事務。' },
+            '巨門': { chain:'tf', color:'#60a5fa', crystal:'藍磷灰', mean:'暗星/口才', traits:'觀察敏銳，能言善道，但容易引發口舌是非，心思較縝密。', fortune2026:'口才致富的一年。適合靠「口」吃飯的工作，需謹言慎行防止是非糾紛。' },
+            '七殺': { chain:'tf', color:'#f87171', crystal:'黑曜石', mean:'肅殺將星', traits:'勇猛果決，獨立性強，是不畏艱難的行動派，主觀性強烈。', fortune2026:'變動開創之年。在競爭中脫穎而出，但須防鋒芒太露招惹口舌與是非。' },
+            '破軍': { chain:'tf', color:'#f87171', crystal:'紅瑪瑙', mean:'耗損先鋒', traits:'破舊立新，勇於冒險，具強大生命力，不按牌理出牌。', fortune2026:'破舊立新。可能面臨環境變動或轉職，勇於改變的結果往往令人驚豔。' },
+            '貪狼': { chain:'tf', color:'#f87171', crystal:'草莓晶', mean:'慾望桃花', traits:'多才多藝，圓滑善交際，情商極高，欲望強烈，博學多聞。', fortune2026:'人緣財運極佳。透過人脈帶來商業收益，需克制物慾與享樂以免分心。' }
+        };
+
+        const app = {
+            nodes: [], starsDOM: {},
+            init() {
+                const chart = document.getElementById('chart-main');
+                const branches = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+                for(let i=0; i<12; i++){
+                    const angle = (i * 30 + 90) * (Math.PI / 180);
+                    const top = 50 + 44 * Math.sin(angle), left = 50 - 44 * Math.cos(angle);
+                    this.nodes.push({top, left});
+                    const div = document.createElement('div');
+                    div.className = 'palace-node'; div.id = `n-${i}`;
+                    div.style.top = top + '%'; div.style.left = left + '%';
+                    div.innerHTML = branches[i]; chart.appendChild(div);
+                }
+                Object.keys(starDB).forEach(name => {
+                    const orb = document.createElement('div');
+                    orb.className = 'star-orb'; orb.style.setProperty('--group-color', starDB[name].color);
+                    orb.innerHTML = `<div class="star-dot"></div><div class="star-name">${name}</div>`;
+                    orb.onclick = () => this.showDetail(name);
+                    this.starsDOM[name] = orb; chart.appendChild(orb);
+                });
+            },
+            launch() {
+                // 安全檢查：如果 Lunar 未加載則報錯
+                if(typeof Lunar === 'undefined') { alert('曆法庫加載中，請稍候...'); return; }
+                
+                StarSound.init(); 
+                StarSound.play(440);
+                document.getElementById('intro-overlay').classList.add('fade-out');
+                document.getElementById('header').classList.add('show');
+                document.getElementById('m-date').value = document.getElementById('i-date').value;
+                document.getElementById('m-time').value = document.getElementById('i-time').value;
+                this.refresh();
+            },
+            refresh() {
+                StarSound.play(660);
+                const loader = document.getElementById('ritual-loader');
+                loader.style.display = 'flex';
+                document.querySelectorAll('.line-path').forEach(p => p.classList.remove('draw'));
+                
+                // 強制在 1.6 秒後執行計算並關閉載入層
+                setTimeout(() => {
+                    this.calculate();
+                    loader.style.display = 'none';
+                    setTimeout(() => { document.querySelectorAll('.line-path').forEach(p => p.classList.add('draw')); }, 50);
+                }, 1600);
+            },
+            calculate() {
+                const dVal = document.getElementById('m-date').value, tIdx = parseInt(document.getElementById('m-time').value);
+                const lunar = Lunar.fromDate(new Date(dVal));
+                const lMonth = Math.abs(lunar.getMonth()), lDay = lunar.getDay();
+                
+                let mIdx = (2 + (lMonth - 1) - tIdx) % 12; if(mIdx < 0) mIdx += 12;
+                document.querySelectorAll('.palace-node').forEach(n => n.classList.remove('active-life'));
+                document.getElementById(`n-${mIdx}`).classList.add('active-life');
+
+                const yearGan = lunar.getYearGan(), stems = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+                const yinStart = [2, 4, 6, 8, 0, 2, 4, 6, 8, 0][stems.indexOf(yearGan)];
+                const mGanIdx = (yinStart + ((mIdx >= 2) ? (mIdx - 2) : (mIdx + 10))) % 10;
+                const bureauData = { 1:4, 2:2, 3:6, 4:5, 5:3 };
+                const bureau = bureauData[((Math.floor(mGanIdx/2)+1) + [1,1,2,2,3,3,1,1,2,2,3,3][mIdx]-1)%5+1];
+
+                let M = (bureau - (lDay % bureau)) % bureau, Q = (lDay + M) / bureau;
+                let S = (M % 2 === 0) ? (Q + M) : (Q - M);
+                let zwIdx = (2 + (S - 1)) % 12; if(zwIdx < 0) zwIdx += 12;
+
+                Object.values(this.starsDOM).forEach(s => s.classList.remove('is-ming-star'));
+
+                const move = (n, p, off) => {
+                    if(!this.starsDOM[n]) return;
+                    const pos = this.nodes[p], chain = starDB[n].chain;
+                    const vertPush = (chain === 'zw') ? -8 : 8;
+                    const horizPush = (chain === 'zw') ? -4 : 4;
+                    const t = pos.top + vertPush, l = pos.left + horizPush;
+                    this.starsDOM[n].style.top = t + '%'; 
+                    this.starsDOM[n].style.left = l + '%';
+                    this.starsDOM[n].coords = {x: l, y: t};
+                    starDB[n].palaceIdx = p;
+                    if(p === mIdx) this.starsDOM[n].classList.add('is-ming-star');
+                };
+                ['紫微','天機',null,'太陽','武曲','天同',null,null,'廉貞'].forEach((n,i)=>move(n,(zwIdx-i+12)%12,i));
+                ['天府','太陰','貪狼','巨門','天相','天梁','七殺',null,null,null,'破軍'].forEach((n,i)=>move(n,((16-zwIdx)%12+i)%12,i));
+                
+                this.draw();
+                
+                let mingStars = [], oppIdx = (mIdx + 6) % 12, oppStars = [];
+                Object.keys(starDB).forEach(name => {
+                    if(starDB[name].palaceIdx === mIdx) mingStars.push(name);
+                    if(starDB[name].palaceIdx === oppIdx) oppStars.push(name);
+                });
+
+                const resBox = document.getElementById('result-box');
+                resBox.style.display = 'block';
+                let msText = mingStars.length > 0 ? `👑 命宮主星：${mingStars.join(' ‧ ')}` : `✨ 命宮空宮 (借對宮：${oppStars.join(' ‧ ')})`;
+                resBox.innerHTML = `<div style="font-size:16px; color:rgba(255,255,255,0.6); margin-bottom:5px;">農曆：${lunar.getYearInGanZhi()}年 ${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}日</div><div class="main-star-display">${msText}</div>`;
+            },
+            draw() {
+                const getPts = (list) => list.map(n => {
+                    const s = this.starsDOM[n];
+                    return s ? `${(s.coords.x * 600)/100},${(s.coords.y * 600)/100}` : null;
+                }).filter(v => v).join(' L ');
+                document.getElementById('path-zw').setAttribute('d', `M ${getPts(['紫微','天機','太陽','武曲','天同','廉貞'])}`);
+                document.getElementById('path-tf').setAttribute('d', `M ${getPts(['天府','太陰','貪狼','巨門','天相','天梁','七殺','破軍'])}`);
+            },
+            showDetail(name) {
+                StarSound.play(880);
+                const s = starDB[name];
+                document.getElementById('pName').innerText = name;
+                document.getElementById('pCrystal').innerText = `💎 能量水晶：${s.crystal}`;
+                document.getElementById('pMean').innerText = s.mean;
+                document.getElementById('pTraits').innerText = s.traits;
+                document.getElementById('pFortune').innerText = s.fortune2026;
+                const img = document.getElementById('pImg');
+                img.src = `${name}.jpg`; 
+                img.onerror = () => { img.src = `https://via.placeholder.com/450x320/111/gold?text=${name}`; };
+                document.getElementById('sidePanel').classList.add('open');
+            },
+            zoom() {
+                document.getElementById('modal-img').src = document.getElementById('pImg').src;
+                document.getElementById('img-modal').style.display = 'flex';
+            }
+        };
+        window.onload = () => app.init();
+    </script>
+</body>
+</html>
